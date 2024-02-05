@@ -67,7 +67,6 @@ services:
        echo "Waiting for Elasticsearch availability";
        until curl -s --cacert config/certs/ca/ca.crt https://es01:9200 | grep -q "missing authentication credentials"; do sleep 30; done;
        echo "Setting kibana_system password";
-       until curl -s -X POST --cacert config/certs/ca/ca.crt -u "elastic:${ELASTIC_PASSWORD}" -H "Content-Type: application/json" https://es01:9200/_security/user/kibana_system/_password -d "{\"password\":\"${KIBANA_PASSWORD}\"}" | grep -q "^{}"; do sleep 10; done;
        echo "All done!";
      '
    healthcheck:
@@ -149,6 +148,27 @@ services:
      interval: 10s
      timeout: 10s
      retries: 120
+ filebeat01:
+   depends_on:
+     es01:
+       condition: service_healthy
+   image: docker.elastic.co/beats/filebeat:${STACK_VERSION}
+   restart: always
+   command: -e --strict.perms=false
+   user: root
+   volumes:
+     - certs:/usr/share/filebeat/certs
+     - filebeatdata01:/usr/share/filebeat/data
+     - "./filebeat_ingest_data/:/usr/share/filebeat/ingest_data/"
+     - "./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro"
+     - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
+     - "/var/run/docker.sock:/var/run/docker.sock:ro"
+   environment:
+     - ELASTIC_USER=elastic
+     - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+     - ELASTIC_HOSTS=https://es01:9200
+     - KIBANA_HOSTS=http://kibana:5601
+     - LOGSTASH_HOSTS=http://logstash01:9600
  logstash01:
    depends_on:
      es01:
@@ -169,27 +189,3 @@ services:
      - ELASTIC_USER=elastic
      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
      - ELASTIC_HOSTS=https://es01:9200
-   ports:
-      - "5044:5044" 
- filebeat01:
-   depends_on:
-     es01:
-       condition: service_healthy
-   image: docker.elastic.co/beats/filebeat:${STACK_VERSION}
-   restart: always
-   command: -e --strict.perms=false
-  #  command: ["sh", "-c", "chmod go-w /usr/share/filebeat/filebeat.yml && /usr/share/filebeat/filebeat -e"]
-   user: root
-   volumes:
-     - certs:/usr/share/filebeat/certs
-     - filebeatdata01:/usr/share/filebeat/data
-     - "./filebeat_ingest_data/:/usr/share/filebeat/ingest_data/"
-     - "./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro"
-     - "/var/lib/docker/containers:/var/lib/docker/containers:ro"
-     - "/var/run/docker.sock:/var/run/docker.sock:ro"
-   environment:
-     - ELASTIC_USER=elastic
-     - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
-     - ELASTIC_HOSTS=https://es01:9200
-     - KIBANA_HOSTS=http://kibana:5601
-     - LOGSTASH_HOSTS=http://logstash01:9600

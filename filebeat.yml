@@ -1,13 +1,27 @@
 filebeat.inputs:
 - type: docker
-  containers.ids: 'd927348bd4ed204cf418c389550d8b0f88812646bc7cd44740186bf670295631'
-
+  containers.ids: '769476e6ff4d43a3fa6321ba8cf7db8ab67d5506c224207d653be709e8b288e4'
+  # multline.type: pattern
+  # multiline.pattern: ^\[
+  # multiline.negate: true
+  # multiline.match: afteri
 
 filebeat.autodiscover:
- providers:
-   - type: docker
-     hints.enabled: true
-
+  providers:
+    - type: docker
+      templates:
+        - condition:
+            and:
+             - not.contains:
+                docker.container.image: docker.elastic.co/elasticsearch/elasticsearch:7.17.0
+             - not.contains:
+                docker.container.image: docker.elastic.co/logstash/logstash:7.17.0
+             - not.contains:
+                docker.container.image: docker.elastic.co/kibana/kibana:7.17.0
+          config:
+            - type: container
+              paths:
+                - /var/lib/docker/containers/${data.docker.container.id}/*.log
 
 processors:
 - add_docker_metadata: ~
@@ -19,5 +33,9 @@ setup.kibana:
  password: ${ELASTIC_PASSWORD}
 
 
-output.logstash:
-  hosts: ${LOGSTASH_HOSTS}
+output.elasticsearch:
+ hosts: ${ELASTIC_HOSTS}
+ username: ${ELASTIC_USER}
+ password: ${ELASTIC_PASSWORD}
+#  ssl.enabled: true
+ ssl.certificate_authorities: "certs/ca/ca.crt"
